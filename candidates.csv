@@ -1,0 +1,21 @@
+candidate_id,name,years_experience,current_role,skills,education,past_roles_count,avg_tenure_months,role_complexity_trend,github_repos,oss_contributions,research_papers,hackathon_wins,blog_posts,domain_switches,successful_pivot,resume_word_count,quantified_achievements,certifications
+CAND-001,Aarav Mehta,3,ML Engineer,"Python, TensorFlow, Docker, SQL",B.Tech CSE,2,18,increasing,42,6,3,2,4,1,1,612,8,2
+CAND-002,Priya Sharma,3,Software Engineer,"Python, TensorFlow, Keras, AWS",B.Tech CSE,1,36,flat,3,0,0,0,0,0,0,480,2,1
+CAND-003,Rohan Iyer,5,Senior Data Scientist,"Python, PyTorch, NLP, Spark, SQL",M.Tech AI,3,20,increasing,28,4,2,1,6,1,1,705,11,3
+CAND-004,Sneha Reddy,4,ML Engineer,"Python, TensorFlow, MLOps, Kubernetes",B.E. ECE,2,24,increasing,15,2,1,0,2,0,0,590,6,2
+CAND-005,Kabir Singh,6,Lead ML Engineer,"Python, PyTorch, Deep Learning, AWS, MLOps",M.S. Computer Science,2,36,increasing,9,1,4,0,3,0,0,810,14,4
+CAND-006,Ananya Gupta,2,Data Analyst,"Python, SQL, Excel, Tableau",B.Tech IT,1,24,flat,1,0,0,0,0,0,0,350,1,1
+CAND-007,Vivaan Kapoor,4,ML Engineer,"Python, TensorFlow, Computer Vision",B.Tech CSE,3,16,increasing,33,5,2,3,5,1,1,650,9,2
+CAND-008,Ishita Verma,5,Research Engineer,"Python, PyTorch, NLP, Research",PhD Machine Learning,1,60,increasing,22,3,8,1,9,0,0,890,16,3
+CAND-009,Arjun Nair,3,Software Engineer,"Java, Spring, SQL",B.E. Computer Engineering,1,30,flat,2,0,0,0,0,0,0,420,2,0
+CAND-010,Diya Patel,4,ML Engineer,"Python, scikit-learn, Pandas, AWS",B.Tech CSE,2,22,increasing,18,2,1,1,3,1,1,580,7,2
+CAND-011,Aditya Rao,7,Principal Engineer,"Python, Deep Learning, Distributed Systems, AWS",M.Tech CSE,2,40,increasing,12,2,3,0,4,0,0,920,18,3
+CAND-012,Meera Joshi,3,Data Scientist,"Python, R, SQL, Tableau",M.Sc Statistics,2,18,flat,5,0,0,0,1,0,0,540,9,2
+CAND-013,Karthik Subramaniam,5,ML Engineer,"Python, TensorFlow, Kubernetes, Docker",B.Tech CSE,4,12,increasing,38,7,1,2,6,2,1,670,8,2
+CAND-014,Tanvi Desai,2,Junior Developer,"Python, Flask, MySQL",B.Tech IT,1,22,flat,2,0,0,0,0,0,0,310,1,0
+CAND-015,Rahul Bhatt,6,Senior ML Engineer,"Python, PyTorch, NLP, Research, AWS",M.S. AI,2,30,increasing,25,3,3,1,5,1,1,780,13,3
+CAND-016,Nisha Pillai,4,ML Engineer,"Python, TensorFlow, Biotechnology, Bioinformatics",M.Sc Biotechnology,1,14,increasing,42,6,3,2,8,1,1,710,12,2
+CAND-017,Yash Malhotra,3,Software Engineer,"Python, Django, PostgreSQL",B.Tech CSE,2,16,flat,4,0,0,0,0,0,0,400,2,0
+CAND-018,Pooja Agarwal,5,Data Scientist,"Python, ML, Statistics, SQL",M.Sc Data Science,2,26,increasing,16,1,2,0,3,0,0,620,10,2
+CAND-019,Siddharth Kulkarni,4,ML Engineer,"Python, TensorFlow, Computer Vision, AWS",B.Tech CSE,3,14,increasing,30,4,1,1,4,1,1,640,8,2
+CAND-020,Riya Chatterjee,3,Research Assistant,"Python, PyTorch, NLP, Research",M.Tech AI,1,24,increasing,20,2,5,0,7,0,0,750,11,2
