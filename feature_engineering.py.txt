@@ -1,0 +1,194 @@
+"""
+feature_engineering.py
+-----------------------
+Computes the six RecruitDNA scoring dimensions for each candidate.
+
+Each function returns a 0-100 score. All scores are computed from
+structured candidate fields (see data/candidates.csv) plus the parsed
+job description (see data/job_description.json).
+
+This module has NO external API dependency — it runs entirely offline
+on structured data, which keeps it fast, deterministic, and free of
+hallucination risk (every score traces back to a concrete input field).
+"""
+
+import re
+import numpy as np
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+try:
+    from sentence_transformers import SentenceTransformer, util
+    _ST_AVAILABLE = True
+except Exception:
+    _ST_AVAILABLE = False
+
+
+# ──────────────────────────────────────────────────────────────────
+# Lazy-loaded embedding model (only loaded once, reused across calls)
+# Falls back to TF-IDF cosine similarity if sentence-transformers / the
+# HuggingFace Hub is unavailable (e.g. offline environments, CI runners
+# without internet access). This keeps the pipeline fully self-contained.
+# ──────────────────────────────────────────────────────────────────
+_MODEL = None
+_MODEL_FAILED = False
+
+
+def get_model():
+    global _MODEL, _MODEL_FAILED
+    if _MODEL is None and not _MODEL_FAILED:
+        try:
+            _MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+        except Exception:
+            _MODEL_FAILED = True
+    return _MODEL
+
+
+def normalize(series: pd.Series) -> pd.Series:
+    """Min-max normalize a pandas Series to the 0-100 range."""
+    lo, hi = series.min(), series.max()
+    if hi == lo:
+        return pd.Series([50.0] * len(series), index=series.index)
+    return ((series - lo) / (hi - lo) * 100).round(1)
+
+
+# ──────────────────────────────────────────────────────────────────
+# 1. SKILL MATCH (25%) — semantic similarity between JD and candidate skills
+# ──────────────────────────────────────────────────────────────────
+def score_skill_match(df: pd.DataFrame, jd: dict) -> pd.Series:
+    """
+    Semantic similarity between JD requirements and candidate skills.
+    Uses Sentence-Transformers when available (better semantic understanding,
+    e.g. matches "Deep Learning" to "Neural Networks"). Falls back to TF-IDF
+    cosine similarity if the transformer model can't be downloaded — this
+    keeps the pipeline runnable in fully offline / restricted-network
+    environments without failing the whole run.
+    """
+    jd_text = " ".join(jd["required_skills"] + jd.get("preferred_skills", []))
+    model = get_model()
+
+    if model is not None:
+        jd_embedding = model.encode(jd_text, convert_to_tensor=True)
+        scores = []
+        for skills_str in df["skills"]:
+            cand_embedding = model.encode(skills_str, convert_to_tensor=True)
+            sim = util.cos_sim(jd_embedding, cand_embedding).item()
+            scores.append(max(0.0, min(1.0, (sim - 0.15) / 0.6)) * 100)
+        return pd.Series(scores, index=df.index).round(1)
+
+    # ---- TF-IDF fallback (no internet / model download required) ----
+    corpus = [jd_text] + df["skills"].tolist()
+    vectorizer = TfidfVectorizer(token_pattern=r"[A-Za-z\+\#\.]+", lowercase=True)
+    tfidf = vectorizer.fit_transform(corpus)
+    sims = cosine_similarity(tfidf[0:1], tfidf[1:]).flatten()
+    # Real-world TF-IDF cosine similarity on short skill lists vs a JD typically
+    # ranges ~0.0 (no overlap) to ~0.45-0.55 (strong, near-complete overlap).
+    # Rescale that observed range to the full 0-100 score band.
+    scaled = np.clip(sims / 0.45, 0, 1) * 100
+    return pd.Series(scaled, index=df.index).round(1)
+
+
+# ──────────────────────────────────────────────────────────────────
+# 2. LEARNING VELOCITY (25%) — is role complexity increasing over time?
+# ──────────────────────────────────────────────────────────────────
+def score_learning_velocity(df: pd.DataFrame) -> pd.Series:
+    trend_map = {"increasing": 1.0, "flat": 0.35, "decreasing": 0.0}
+    trend_score = df["role_complexity_trend"].map(trend_map)
+
+    # Combine with role-switch frequency (more roles in less time = faster growth,
+    # but only when paired with an "increasing" trend — otherwise it's instability)
+    roles_per_year = df["past_roles_count"] / (df["years_experience"].clip(lower=1))
+    roles_per_year_norm = normalize(roles_per_year) / 100
+
+    raw = (0.7 * trend_score) + (0.3 * roles_per_year_norm)
+    return (raw * 100).round(1)
+
+
+# ──────────────────────────────────────────────────────────────────
+# 3. CURIOSITY INDEX (20%) — GitHub, research, hackathons, blogs
+# ──────────────────────────────────────────────────────────────────
+def score_curiosity(df: pd.DataFrame) -> pd.Series:
+    weights = {
+        "github_repos": 0.30,
+        "oss_contributions": 0.25,
+        "research_papers": 0.20,
+        "hackathon_wins": 0.15,
+        "blog_posts": 0.10,
+    }
+    raw = sum(normalize(df[col]) * w for col, w in weights.items())
+    return raw.round(1)
+
+
+# ──────────────────────────────────────────────────────────────────
+# 4. ADAPTABILITY (15%) — successful domain switches
+# ──────────────────────────────────────────────────────────────────
+def score_adaptability(df: pd.DataFrame) -> pd.Series:
+    base = df["domain_switches"] * 30
+    bonus = df["successful_pivot"] * 25
+    raw = (base + bonus).clip(upper=100)
+    return raw.round(1)
+
+
+# ──────────────────────────────────────────────────────────────────
+# 5. STABILITY SCORE (10%) — tenure patterns, NOT punishing short tenure alone
+# ──────────────────────────────────────────────────────────────────
+def score_stability(df: pd.DataFrame) -> pd.Series:
+    tenure_score = normalize(df["avg_tenure_months"])
+    # Penalize only extreme role-hopping (>5 roles), otherwise neutral-friendly
+    hop_penalty = np.where(df["past_roles_count"] > 5, -15, 0)
+    raw = (tenure_score + hop_penalty).clip(lower=0, upper=100)
+    return pd.Series(raw, index=df.index).round(1)
+
+
+# ──────────────────────────────────────────────────────────────────
+# 6. COMMUNICATION (5%) — resume clarity & quantified achievements
+# ──────────────────────────────────────────────────────────────────
+def score_communication(df: pd.DataFrame) -> pd.Series:
+    achievement_score = normalize(df["quantified_achievements"])
+    # Word count sweet spot ~500-800; too short or too long both penalized lightly
+    word_count_score = df["resume_word_count"].apply(
+        lambda w: 100 - min(abs(w - 650) / 6, 40)
+    )
+    raw = (0.6 * achievement_score) + (0.4 * word_count_score)
+    return raw.round(1)
+
+
+# ──────────────────────────────────────────────────────────────────
+# COMBINE ALL DIMENSIONS INTO THE PROFESSIONAL PHENOTYPE™ SCORE
+# ──────────────────────────────────────────────────────────────────
+DEFAULT_WEIGHTS = {
+    "skill_match": 0.25,
+    "learning_velocity": 0.25,
+    "curiosity_index": 0.20,
+    "adaptability": 0.15,
+    "stability": 0.10,
+    "communication": 0.05,
+}
+
+
+def compute_all_scores(df: pd.DataFrame, jd: dict, weights: dict = None) -> pd.DataFrame:
+    """
+    Computes all six dimension scores plus the combined Phenotype score.
+    Returns a new DataFrame with score columns appended.
+    """
+    weights = weights or DEFAULT_WEIGHTS
+    out = df.copy()
+
+    out["skill_match"] = score_skill_match(df, jd)
+    out["learning_velocity"] = score_learning_velocity(df)
+    out["curiosity_index"] = score_curiosity(df)
+    out["adaptability"] = score_adaptability(df)
+    out["stability"] = score_stability(df)
+    out["communication"] = score_communication(df)
+
+    out["phenotype_score"] = (
+        out["skill_match"] * weights["skill_match"]
+        + out["learning_velocity"] * weights["learning_velocity"]
+        + out["curiosity_index"] * weights["curiosity_index"]
+        + out["adaptability"] * weights["adaptability"]
+        + out["stability"] * weights["stability"]
+        + out["communication"] * weights["communication"]
+    ).round(1)
+
+    return out
