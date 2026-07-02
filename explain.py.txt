@@ -1,0 +1,73 @@
+"""
+explain.py
+----------
+Generates plain-English explanations for each candidate's ranking.
+
+IMPORTANT: This module does NOT use an LLM to freely generate text.
+Every sentence is template-filled from the candidate's actual computed
+scores and raw data fields. This is a deliberate design choice to
+prevent hallucination — every claim in the explanation traces back to
+a specific number in the input data.
+"""
+
+import pandas as pd
+
+
+def _strength_label(score: float) -> str:
+    if score >= 85:
+        return "exceptional"
+    if score >= 70:
+        return "strong"
+    if score >= 50:
+        return "moderate"
+    return "limited"
+
+
+def explain_candidate(row: pd.Series) -> str:
+    """
+    Builds a one-to-two sentence explanation for a single candidate row.
+    Highlights the top 2 strongest dimensions and the weakest dimension,
+    each backed by a concrete data point.
+    """
+    dims = {
+        "Skill Match": row["skill_match"],
+        "Learning Velocity": row["learning_velocity"],
+        "Curiosity Index": row["curiosity_index"],
+        "Adaptability": row["adaptability"],
+        "Stability": row["stability"],
+        "Communication": row["communication"],
+    }
+    sorted_dims = sorted(dims.items(), key=lambda kv: kv[1], reverse=True)
+    top1, top2 = sorted_dims[0], sorted_dims[1]
+    weakest = sorted_dims[-1]
+
+    evidence_map = {
+        "Skill Match": f"{row['skills']}",
+        "Learning Velocity": f"role complexity trend: {row['role_complexity_trend']}",
+        "Curiosity Index": f"{row['github_repos']} GitHub repos, {row['research_papers']} papers, {row['hackathon_wins']} hackathon wins",
+        "Adaptability": f"{row['domain_switches']} domain switch(es), pivot success: {'yes' if row['successful_pivot'] else 'no'}",
+        "Stability": f"avg tenure {row['avg_tenure_months']} months across {row['past_roles_count']} roles",
+        "Communication": f"{row['quantified_achievements']} quantified achievements listed",
+    }
+
+    sentence = (
+        f"{_strength_label(top1[1]).capitalize()} {top1[0]} ({top1[1]}/100) "
+        f"\u2014 {evidence_map[top1[0]]}. "
+        f"Also {_strength_label(top2[1])} {top2[0]} ({top2[1]}/100). "
+    )
+
+    if weakest[1] < 50:
+        sentence += (
+            f"{weakest[0]} is the weakest signal ({weakest[1]}/100) "
+            f"\u2014 {evidence_map[weakest[0]]}."
+        )
+    else:
+        sentence += "No significant weak signals detected across all six dimensions."
+
+    return sentence
+
+
+def add_explanations(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    out["xai_explanation"] = out.apply(explain_candidate, axis=1)
+    return out
