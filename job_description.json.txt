@@ -1,0 +1,24 @@
+{
+  "job_id": "JD-2026-001",
+  "title": "Senior Machine Learning Engineer",
+  "company": "TechCorp Analytics",
+  "department": "AI & Data Science",
+  "seniority": "Senior (4-7 years)",
+  "description": "We are looking for a Senior Machine Learning Engineer to join our AI team. The ideal candidate will design, build, and deploy production ML systems, work with large-scale datasets, and collaborate with cross-functional teams to translate research into real-world products. We value engineers who learn quickly, contribute to open-source or research, and can adapt to new domains as our product evolves.",
+  "required_skills": [
+    "Python",
+    "Machine Learning",
+    "Deep Learning",
+    "TensorFlow or PyTorch",
+    "Data Pipelines",
+    "Model Deployment"
+  ],
+  "preferred_skills": [
+    "Research publications",
+    "Open-source contributions",
+    "Cloud platforms (AWS/GCP/Azure)",
+    "MLOps experience"
+  ],
+  "domain_context": "Fast-growing analytics startup, product team of 12, fast iteration cycles, cross-functional collaboration with data and product teams.",
+  "implicit_signals": "Looking for high learning velocity and adaptability over long, narrow tenure. Startup pace requires comfort with ambiguity and self-direction."
+}
