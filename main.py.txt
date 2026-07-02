@@ -1,0 +1,105 @@
+"""
+main.py
+-------
+RecruitDNA — end-to-end candidate ranking pipeline.
+
+Usage:
+    python main.py
+    python main.py --jd data/job_description.json --candidates data/candidates.csv
+
+Output:
+    output/ranked_candidates.csv
+
+Pipeline:
+    1. Load job description (JSON) and candidate pool (CSV)
+    2. Compute six RecruitDNA scoring dimensions per candidate
+    3. Combine into a single Professional Phenotype(tm) score
+    4. Rank candidates highest to lowest
+    5. Generate a plain-English explanation for every rank
+    6. Export the final ranked_candidates.csv
+"""
+
+import argparse
+import json
+import sys
+import time
+
+import pandas as pd
+
+from utils.feature_engineering import compute_all_scores
+from utils.explain import add_explanations
+
+
+def load_job_description(path: str) -> dict:
+    with open(path, "r") as f:
+        return json.load(f)
+
+
+def load_candidates(path: str) -> pd.DataFrame:
+    return pd.read_csv(path)
+
+
+def run_pipeline(jd_path: str, candidates_path: str, output_path: str) -> pd.DataFrame:
+    t0 = time.time()
+
+    print(f"[1/5] Loading job description from {jd_path} ...")
+    jd = load_job_description(jd_path)
+    print(f"      Role: {jd['title']}  |  Seniority: {jd['seniority']}")
+
+    print(f"[2/5] Loading candidate pool from {candidates_path} ...")
+    candidates = load_candidates(candidates_path)
+    print(f"      Loaded {len(candidates)} candidates")
+
+    print("[3/5] Computing 6-dimension RecruitDNA scores "
+          "(Skill Match, Learning Velocity, Curiosity, Adaptability, "
+          "Stability, Communication) ...")
+    scored = compute_all_scores(candidates, jd)
+
+    print("[4/5] Ranking candidates by Professional Phenotype(tm) score ...")
+    scored = scored.sort_values("phenotype_score", ascending=False).reset_index(drop=True)
+    scored.insert(0, "rank", range(1, len(scored) + 1))
+
+    print("[5/5] Generating explainable AI (XAI) reasoning per candidate ...")
+    final = add_explanations(scored)
+
+    # Reorder columns: identity → rank → score → sub-scores → explanation → raw fields
+    front_cols = [
+        "rank", "candidate_id", "name", "phenotype_score",
+        "skill_match", "learning_velocity", "curiosity_index",
+        "adaptability", "stability", "communication",
+        "xai_explanation",
+    ]
+    remaining_cols = [c for c in final.columns if c not in front_cols]
+    final = final[front_cols + remaining_cols]
+
+    final.to_csv(output_path, index=False)
+
+    elapsed = time.time() - t0
+    print(f"\nDone in {elapsed:.2f}s. Ranked output written to: {output_path}")
+    print(f"\nTop 3 candidates:")
+    for _, row in final.head(3).iterrows():
+        print(f"  #{row['rank']}  {row['candidate_id']}  "
+              f"({row['name']})  Score: {row['phenotype_score']}/100")
+
+    return final
+
+
+def main():
+    parser = argparse.ArgumentParser(description="RecruitDNA candidate ranking pipeline")
+    parser.add_argument("--jd", default="data/job_description.json",
+                         help="Path to job description JSON")
+    parser.add_argument("--candidates", default="data/candidates.csv",
+                         help="Path to candidates CSV")
+    parser.add_argument("--output", default="output/ranked_candidates.csv",
+                         help="Path to write ranked output CSV")
+    args = parser.parse_args()
+
+    try:
+        run_pipeline(args.jd, args.candidates, args.output)
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
